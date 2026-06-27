@@ -2,16 +2,20 @@ name: Daily Stock Scanner
 
 on:
   schedule:
-    # 台灣時間 14:00 = UTC 06:00
+    # 台灣時間 14:00 (UTC 06:00)
     - cron: '0 6 * * *'
-  workflow_dispatch: # 允許手動觸發測試
+  workflow_dispatch: 
+
+# 【新增】給予 GitHub Actions 寫入權限，確保能夠推送 CSV 檔
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # 【更新】升級為 v4
 
       - name: Set up Python
         uses: actions/setup-python@v4

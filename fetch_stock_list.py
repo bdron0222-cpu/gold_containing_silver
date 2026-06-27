@@ -5,54 +5,64 @@ import os
 
 def fetch_stock_list():
     print("正在從證交所下載最新股票清單...")
-    url = "https://isin.twse.com.tw/isin/C_public.jsp?strMode=2"
     headers = {'user-agent': 'Mozilla/5.0'}
     
-    try:
-        res = requests.get(url, headers=headers)
-        res.encoding = 'big5'
-        dfs = pd.read_html(io.StringIO(res.text))
-        df = dfs[0]
-    except Exception as e:
-        print(f"下載失敗: {e}")
-        return
-
-    # 1. 標題定位
-    header_idx = df[df.apply(lambda row: row.astype(str).str.contains('有價證券代號及名稱').any(), axis=1)].index[0]
-    df.columns = df.iloc[header_idx]
-    df = df.iloc[header_idx + 1:]
-    df.columns = df.columns.str.strip()
+    # 這裡加入 strMode=2 (上市) 與 strMode=4 (上櫃)
+    urls = [
+        "https://isin.twse.com.tw/isin/C_public.jsp?strMode=2",
+        "https://isin.twse.com.tw/isin/C_public.jsp?strMode=4"
+    ]
     
-    # 2. 重新命名與欄位處理
-    df = df.rename(columns={'有價證券代號及名稱': 'Symbol_Name', '市場別': 'Market'})
-    split_df = df['Symbol_Name'].str.split(n=1, expand=True)
-    df['Code'] = split_df[0].str.strip()
-    df['Name'] = split_df[1].str.strip()
-    df['Market'] = df['Market'].str.strip()
+    all_dfs = []
+    
+    for url in urls:
+        try:
+            res = requests.get(url, headers=headers)
+            res.encoding = 'big5'
+            dfs = pd.read_html(io.StringIO(res.text))
+            df = dfs[0]
+            
+            # 定位標題列
+            header_idx = df[df.apply(lambda row: row.astype(str).str.contains('有價證券代號及名稱').any(), axis=1)].index[0]
+            df.columns = df.iloc[header_idx]
+            df = df.iloc[header_idx + 1:]
+            df.columns = df.columns.str.strip()
+            
+            # 整理欄位
+            df = df.rename(columns={'有價證券代號及名稱': 'Symbol_Name', '市場別': 'Market'})
+            split_df = df['Symbol_Name'].str.split(n=1, expand=True)
+            df['Code'] = split_df[0].str.strip()
+            df['Name'] = split_df[1].str.strip()
+            df['Market'] = df['Market'].str.strip()
+            
+            all_dfs.append(df)
+            print(f"成功抓取一組資料: {url.split('=')[-1]}")
+            
+        except Exception as e:
+            print(f"下載失敗: {e}")
+            continue
 
-    print(f"原始抓取總數: {len(df)}")
+    # 合併兩份資料
+    df = pd.concat(all_dfs, ignore_index=True)
+    print(f"合併後原始總數: {len(df)}")
 
-    # 3. 篩選條件
+    # 篩選條件
     df = df[df['Market'].isin(['上市', '上櫃'])].copy()
-    print(f"過濾市場(上市/上櫃)後: {len(df)}")
-    
-    # 加入括號修正優先順序，確保同時符合長度與數字判斷
     df = df[(df['Code'].str.len() == 4) & (df['Code'].str.isdigit())]
-    print(f"過濾代號(4位數)後: {len(df)}")
-    
-    # 4. 黑名單機制
+
+    # 黑名單機制
     if os.path.exists('blacklist.txt'):
         with open('blacklist.txt', 'r', encoding='utf-8') as f:
             blacklist = [line.strip() for line in f if line.strip()]
         df = df[~df['Code'].isin(blacklist)]
         print(f"已排除黑名單，剔除 {len(blacklist)} 檔。")
 
-    # 5. 剔除 ETF、特別股等
+    # 剔除 ETF、特別股等
     exclude_keywords = ['ETF', '認購', '認售', '特別股', '存託', 'ETN']
     for keyword in exclude_keywords:
         df = df[~df['Name'].str.contains(keyword, na=False)]
     
-    # 輸出
+    # 輸出：上市加 .TW，上櫃加 .TWO
     def format_ticker(row):
         return f"{row['Code']}.TW" if row['Market'] == '上市' else f"{row['Code']}.TWO"
         
