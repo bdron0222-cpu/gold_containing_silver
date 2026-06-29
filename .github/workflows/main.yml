@@ -21,7 +21,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 【修正重點】：補上 lxml 套件，這是解析網頁資料的必備工具
       - name: Install dependencies
         run: |
           pip install pandas requests yfinance lxml
@@ -37,11 +36,11 @@ jobs:
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           
-          # 【心跳機制】：產生一個心跳檔案，確保每天都有變動
+          # 建立心跳檔案
           echo "Last run: $(date)" > heartbeat.txt
           
-          # 加入所有 CSV 檔與心跳檔
-          git add *.csv heartbeat.txt
+          # 【修正重點】：加入 -f 參數，強制將被忽略的檔案 (.csv) 加入 git
+          git add -f *.csv heartbeat.txt
           
           # 如果有變更才 commit
           git commit -m "自動更新: 每日選股結果與心跳" || exit 0
