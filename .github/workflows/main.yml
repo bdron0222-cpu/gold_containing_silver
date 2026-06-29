@@ -6,7 +6,6 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch: 
 
-# 【新增】給予 GitHub Actions 寫入權限，確保能夠推送 CSV 檔
 permissions:
   contents: write
 
@@ -15,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # 【更新】升級為 v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -33,7 +32,18 @@ jobs:
         run: python scanner.py
 
       - name: Commit and push changes
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "自動更新: 每日選股結果"
-          file_pattern: "*.csv"
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          
+          # 【心跳機制】：產生一個心跳檔案，確保每天都有變動，防止倉庫被判定為閒置
+          echo "Last run: $(date)" > heartbeat.txt
+          
+          # 加入所有 CSV 檔與心跳檔
+          git add *.csv heartbeat.txt
+          
+          # 如果有變更才 commit，由於心跳檔每天都會更新，這保證了一定會 commit
+          git commit -m "自動更新: 每日選股結果與心跳" || exit 0
+          
+          # 推送到 GitHub
+          git push
