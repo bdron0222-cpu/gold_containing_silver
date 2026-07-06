@@ -2,6 +2,7 @@ import pandas as pd
 import requests
 import io
 import os
+import sys
 
 def fetch_stock_list():
     print("正在從證交所下載最新股票清單...")
@@ -19,7 +20,8 @@ def fetch_stock_list():
         try:
             res = requests.get(url, headers=headers)
             res.encoding = 'big5'
-            dfs = pd.read_html(io.StringIO(res.text))
+            # 使用 html5lib 進行解析（確保環境已安裝 html5lib）
+            dfs = pd.read_html(io.StringIO(res.text), flavor='html5lib')
             df = dfs[0]
             
             # 定位標題列
@@ -30,17 +32,24 @@ def fetch_stock_list():
             
             # 整理欄位
             df = df.rename(columns={'有價證券代號及名稱': 'Symbol_Name', '市場別': 'Market'})
-            split_df = df['Symbol_Name'].str.split(n=1, expand=True)
-            df['Code'] = split_df[0].str.strip()
-            df['Name'] = split_df[1].str.strip()
-            df['Market'] = df['Market'].str.strip()
-            
-            all_dfs.append(df)
-            print(f"成功抓取一組資料: {url.split('=')[-1]}")
+            # 確保 Symbol_Name 存在且非空
+            if 'Symbol_Name' in df.columns:
+                split_df = df['Symbol_Name'].str.split(n=1, expand=True)
+                df['Code'] = split_df[0].str.strip()
+                df['Name'] = split_df[1].str.strip()
+                df['Market'] = df['Market'].str.strip()
+                
+                all_dfs.append(df)
+                print(f"成功抓取一組資料: {url.split('=')[-1]}")
             
         except Exception as e:
-            print(f"下載失敗: {e}")
+            print(f"下載或解析失敗: {e}")
             continue
+
+    # 【防呆機制】：檢查是否有抓到資料
+    if not all_dfs:
+        print("錯誤：沒有抓到任何有效資料，程式終止。")
+        sys.exit(1)  # 結束程式並回報錯誤代碼，讓 GitHub Actions 知道失敗了
 
     # 合併兩份資料
     df = pd.concat(all_dfs, ignore_index=True)
