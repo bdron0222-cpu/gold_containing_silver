@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pandas requests yfinance lxml
+          pip install pandas requests yfinance lxml html5lib beautifulsoup4
 
       - name: Run Fetcher
         run: python fetch_stock_list.py
